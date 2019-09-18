@@ -22,6 +22,8 @@ func printHelp() {
 
 Options:
     -c|--config <path>            Path to config file. Default is a24api-conf.json.
+    -e|--endpoint <url>           Active24 REST API url.
+    -k|--key <key>                Active24 REST API key.
 
 Services nad functions:
     dns
@@ -51,7 +53,6 @@ func main() {
     for index, element := range os.Args[1:] {
         log.Printf("Command-line arguments: %d (of %d) = %s", index, argCnt, element)
     }
-
 
 // ================================================================================================================================================================
 // PARSE ENVIRONMENT
@@ -83,9 +84,22 @@ func main() {
             log.Println("Config file does not exists.")
         }
     }
-
-
-
+    // run_a24api_endpoint
+    if env_a24api_endpoint != "" {
+        var run_a24api_endpoint = env_a24api_endpoint
+    } else if cmd_a24api_endpoint != "" {
+        var run_a24api_endpoint = cmd_a24api_endpoint
+    } else {
+        var run_a24api_endpoint = Con_a24api_endpoint
+    }
+    // run_a24api_key
+    if env_a24api_key != "" {
+        var run_a24api_key = env_a24api_key
+    } else if cmd_a24api_key != "" {
+        var run_a24api_key = cmd_a24api_key
+    } else {
+        var run_a24api_key = Con_a24api_key
+    }
 
 // ================================================================================================================================================================
 // PARSE CONFIG FILE
