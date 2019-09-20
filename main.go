@@ -2,9 +2,9 @@ package main
 
 import (
     "os"
-    "bytes"
-    "encoding/json"
-    "fmt"
+//    "bytes"
+//    "encoding/json"
+//    "fmt"
     "io/ioutil"
     "net/http"
     "path/filepath"
@@ -25,17 +25,14 @@ Options:
     -e|--endpoint <url>           Active24 REST API url.
     -k|--key <key>                Active24 REST API key.
 
-Services nad functions:
+Services, functions and parameters:
     dns
-        list
+        list <domain> [-t <type>] [-fn <name regex filter>] [-fv <value regex filter>]
+        delete <domain> <record id>
         create
         update
-        delete
     domain
         list
-        create
-        update
-        delete
 `)
 
 }
@@ -45,9 +42,12 @@ func main() {
 // PARSE COMMAND-LINE
 // ================================================================================================================================================================
 
+    var cmd_a24api_endpoint = ""
+    var cmd_a24api_key = ""
+
     var cmd_a24api_config = ""
-    var cmd_a24api_service = ""
-    var cmd_a24api_function = ""
+//    var cmd_a24api_service = ""
+//    var cmd_a24api_function = ""
 
     var argCnt = len(os.Args[1:])
     for index, element := range os.Args[1:] {
@@ -85,20 +85,22 @@ func main() {
         }
     }
     // run_a24api_endpoint
+    var run_a24api_endpoint = ""
     if env_a24api_endpoint != "" {
-        var run_a24api_endpoint = env_a24api_endpoint
+        run_a24api_endpoint = env_a24api_endpoint
     } else if cmd_a24api_endpoint != "" {
-        var run_a24api_endpoint = cmd_a24api_endpoint
+        run_a24api_endpoint = cmd_a24api_endpoint
     } else {
-        var run_a24api_endpoint = Con_a24api_endpoint
+        run_a24api_endpoint = Con_a24api_endpoint
     }
     // run_a24api_key
+    var run_a24api_key = ""
     if env_a24api_key != "" {
-        var run_a24api_key = env_a24api_key
+        run_a24api_key = env_a24api_key
     } else if cmd_a24api_key != "" {
-        var run_a24api_key = cmd_a24api_key
+        run_a24api_key = cmd_a24api_key
     } else {
-        var run_a24api_key = Con_a24api_key
+        run_a24api_key = Con_a24api_key
     }
 
 // ================================================================================================================================================================
@@ -110,30 +112,45 @@ func main() {
 // PROCESS
 // ================================================================================================================================================================
 
-    a24api_headers = {
-            "Accept": "application/json",
-            "Authorization": "Bearer " + apikey
-        }
-
-
-    httpClient := &http.Client{}
-    req, err := http.NewRequest("GET", run_a24api_endpoint, nil)
-
-
-    response, err := http.Get("https://httpbin.org/ip")
+    a24api_client := &http.Client{}
+    a24api_request, err := http.NewRequest("GET", run_a24api_endpoint, nil)
     if err != nil {
-        fmt.Printf("The HTTP request failed with error %s\n", err)
-    } else {
-        data, _ := ioutil.ReadAll(response.Body)
-        fmt.Println(string(data))
+        log.Fatalln(err)
     }
-    jsonData := map[string]string{"firstname": "Nic", "lastname": "Raboy"}
-    jsonValue, _ := json.Marshal(jsonData)
-    response, err = http.Post("https://httpbin.org/post", "application/json", bytes.NewBuffer(jsonValue))
+
+    a24api_request.Header.Set("Accept", "application/json")
+    a24api_request.Header.Set("Authorization", "Bearer " + run_a24api_key)
+
+    a24api_response, err := a24api_client.Do(a24api_request)
     if err != nil {
-        fmt.Printf("The HTTP request failed with error %s\n", err)
-    } else {
-        data, _ := ioutil.ReadAll(response.Body)
-        fmt.Println(string(data))
+        log.Fatalln(err)
     }
+
+    defer a24api_response.Body.Close()
+
+    a24api_body, err := ioutil.ReadAll(a24api_response.Body)
+    if err != nil {
+        log.Fatalln(err)
+    }
+
+    log.Println(string(a24api_body))
+
+
+
+//    response, err := http.Get("https://httpbin.org/ip")
+//    if err != nil {
+//        fmt.Printf("The HTTP request failed with error %s\n", err)
+//    } else {
+//        data, _ := ioutil.ReadAll(response.Body)
+//        fmt.Println(string(data))
+//    }
+//    jsonData := map[string]string{"firstname": "Nic", "lastname": "Raboy"}
+//    jsonValue, _ := json.Marshal(jsonData)
+//    response, err = http.Post("https://httpbin.org/post", "application/json", bytes.NewBuffer(jsonValue))
+//    if err != nil {
+//        fmt.Printf("The HTTP request failed with error %s\n", err)
+//    } else {
+//        data, _ := ioutil.ReadAll(response.Body)
+//        fmt.Println(string(data))
+//    }
 }
