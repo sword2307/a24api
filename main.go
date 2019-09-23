@@ -31,12 +31,20 @@ Services, functions and parameters:
         list [-fn <name regex filter>]
         list <domain> [-ft <type regex filter>] [-fn <name regex filter>] [-fv <value regex filter>]
         delete <domain> <record id>
-        create <domain> <...>
+        create <domain>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <value>
-
-        update <domain> <record id> <...>
+            <SSHFP> <name> <ttl> <algorithm> <fp_type> <fingerprint>
+            <SRV> <name> <ttl> <priority> <weight> <port> <target>
+            <TLSA> <name> <ttl> <certificate_usage> <selector> <matching_type> <hash>
+            <CAA> <name> <ttl> <flag> <tag> <value>
+            <MX> <name> <ttl> <priority> <value>
+        update <domain> <record id>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <value>
-
+            <SSHFP> <name> <ttl> <algorithm> <fp_type> <fingerprint>
+            <SRV> <name> <ttl> <priority> <weight> <port> <target>
+            <TLSA> <name> <ttl> <certificate_usage> <selector> <matching_type> <hash>
+            <CAA> <name> <ttl> <flag> <tag> <value>
+            <MX> <name> <ttl> <priority> <value>
     domain
         list
 `)
@@ -68,10 +76,8 @@ func main() {
 
         if index == indexUsedFlag {
             indexUsedFlag = -1
-            log.Printf("Command-line argument already used: %d (of %d) = %s", index, indexMax, element)
             continue
         } else {
-            log.Printf("Command-line argument to process: %d (of %d) = %s", index, indexMax, element)
             // print help and exit
             if (element == "-h" || element == "--help") {
                 printHelp()
@@ -80,46 +86,40 @@ func main() {
             } else if (element == "-c" || element == "--config") && (index < indexMax) && (a24api["service"] == "") {
                 a24api["config"] = params[index + 1]
                 indexUsedFlag = index + 1
-                log.Printf("config set to: %s", params[index + 1])
             // set api endpoint
             } else if (element == "-e" || element == "--endpoint") && (index < indexMax) && (a24api["service"] == "") {
                 a24api["endpoint"] = params[index + 1]
                 indexUsedFlag = index + 1
-                log.Printf("endpoint set to: %s", params[index + 1])
             // set api token
             } else if (element == "-t" || element == "--token") && (index < indexMax) && (a24api["service"] == "") {
                 a24api["config"] = params[index + 1]
                 indexUsedFlag = index + 1
-                log.Printf("token set to: %s", params[index + 1])
             // set api service
             } else if (element == "dns" || element == "domain") && (a24api["service"] == "") {
                 a24api["service"] = element
-                log.Printf("service set to: %s", params[index])
             // set api function
             } else if (element == "list" || element == "delete" || element == "create" || element == "update") && (a24api["service"] != "") {
                 a24api["function"] = element
-                log.Printf("function set to: %s", params[index])
             // set name filter
             } else if (element == "-fn") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api["filter-name"] = params[index + 1]
-                log.Printf("filter-name set to: %s", params[index + 1])
             // set type filter
             } else if (element == "-ft") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api["filter-type"] = params[index + 1]
-                log.Printf("filter-type set to: %s", params[index + 1])
             // set value filter
             } else if (element == "-fv") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api["filter-value"] = params[index + 1]
-                log.Printf("filter-value set to: %s", params[index + 1])
-            // set positional arguments
+            // set positional arguments - convert to named variables
             } else if (a24api["service"] != "") && (a24api["function"] != "") {
-
                 switch a24api["service"] {
                     case "dns":
                         // first argument should be always domain
                         if posArgIndex == 0 {
                             a24api["domain"] = element
                         }
+
+
+
                     default:
                         a24api["argument" + strconv.Itoa(posArgIndex)] = element
                         log.Printf("argument%s: %s", strconv.Itoa(posArgIndex), element)
@@ -129,7 +129,7 @@ func main() {
             } else {
                 log.Println("Unknown argument or argument out of order.")
                 printHelp()
-                log.Fatal()
+                os.Exit(1)
             }
         }
     }
@@ -161,19 +161,14 @@ func main() {
 // ================================================================================================================================================================
 
     if a24api["service"] == "" || a24api["function"] == "" {
-        log.Println("Service of function not provided.\n")
+        log.Println("Service or function not provided.")
         printHelp()
-        log.Fatal()
+        os.Exit(1)
     }
 
 // ================================================================================================================================================================
 // PROCESS
 // ================================================================================================================================================================
-
-//    a24api_request_body, err := json.Marshal(map[string]string{
-//        "test": "test",
-//        "test1": "test1",
-//    })
 
     a24api_request_body := make(map[string]string)
 
@@ -213,7 +208,6 @@ func main() {
     }
 
     a24api_request, err := http.NewRequest(a24api["endpoint-method"], a24api["endpoint"] + a24api["endpoint-uri"], bytes.NewBuffer(a24api_request_body_json))
-//    a24api_request, err := http.NewRequest(a24api["endpoint-method"], a24api["endpoint"] + a24api["endpoint-uri"], nil)
     if err != nil {
         log.Fatalln(err)
     }
