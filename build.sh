@@ -1,5 +1,7 @@
 #!/bin/bash
 
+mkdir -p ./build
+
 for platform in 386 amd64 arm arm64; do
     for os in linux darwin windows; do
 
