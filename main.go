@@ -326,6 +326,20 @@ func main() {
         json.Indent(&out, a24api_response_body, "", "    ")
         fmt.Printf("%s\n", string(out.Bytes()))
     } else {
+
+        switch a24api["service"] {
+            case "dns":
+                switch a24api["function"] {
+                    case "list":
+                        if len(a24api_args) == 0 {
+
+
+                        } else {
+
+                        }
+                }
+        }
+
         var out bytes.Buffer
         json.Indent(&out, a24api_response_body, "", "    ")
         fmt.Printf("%s\n", string(out.Bytes()))
