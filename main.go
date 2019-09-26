@@ -10,8 +10,8 @@ import (
     "path/filepath"
     "log"
     "strconv"
-    "strings"
-//    "text/tabwriter"
+    "text/tabwriter"
+    "regexp"
 )
 
 const (
@@ -19,6 +19,9 @@ const (
     Con_a24api_token = "123456qwerty-ok"
     Con_a24api_config = "a24api-conf.json"
     Con_a24api_format = "inline"
+    Con_a24api_name_regexp = ".*"
+    Con_a24api_type_regexp = ".*"
+    Con_a24api_value_regexp = ".*"
 )
 
 type a24api_config_file_t struct {
@@ -38,22 +41,28 @@ Options:
 Services, functions and parameters:
     dns
         list [-fn <name regex filter>]
-        list <domain> [-ft <type regex filter>] [-fn <name regex filter>] [-fv <value regex filter>]
+        list <domain> [-ft <type regex filter>] [-fn <name regex filter>] [-fv <ip|alias|text|mailserver|caavalue|nameserver regex filter>]
         delete <domain> <hash_id>
         create <domain>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <ip|alias|text>
+            <NS> <name|@> <ttl> <nameserver>
             <SSHFP> <name> <ttl> <algorithm> <fp_type> <fingerprint>
             <SRV> <name> <ttl> <priority> <weight> <port> <target>
             <TLSA> <name> <ttl> <certificate_usage> <selector> <matching_type> <hash>
             <CAA> <name> <ttl> <flags> <tag> <value>
-            <MX> <name> <ttl> <priority> <value>
+            <MX> <name> <ttl> <priority> <mailserver>
         update <domain> <hash_id>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <ip|alias|text>
+            <NS> <name|@> <ttl> <nameserver>
             <SSHFP> <name> <ttl> <algorithm> <fp_type> <fingerprint>
             <SRV> <name> <ttl> <priority> <weight> <port> <target>
             <TLSA> <name> <ttl> <certificate_usage> <selector> <matching_type> <hash>
-            <CAA> <name> <ttl> <flags> <tag> <value>
-            <MX> <name> <ttl> <priority> <value>
+            <CAA> <name> <ttl> <flags> <tag> <caavalue>
+            <MX> <name> <ttl> <priority> <mailserver>
+
+Comments:
+    filters are applied only to inline format
+
 `)
 
 }
@@ -115,12 +124,15 @@ func main() {
             // set name filter
             } else if (element == "-fn") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api["filter-name"] = params[index + 1]
+                indexUsedFlag = index + 1
             // set type filter
             } else if (element == "-ft") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api["filter-type"] = params[index + 1]
+                indexUsedFlag = index + 1
             // set value filter
             } else if (element == "-fv") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api["filter-value"] = params[index + 1]
+                indexUsedFlag = index + 1
             // set positional arguments
             } else if (a24api["service"] != "") && (a24api["function"] != "") {
                 a24api_args["argument" + strconv.Itoa(posArgIndex)] = element
@@ -153,6 +165,15 @@ func main() {
     }
     if a24api["format"] == "" {
         a24api["format"] = Con_a24api_format
+    }
+    if a24api["filter-name"] == "" {
+        a24api["filter-name"] = Con_a24api_name_regexp
+    }
+    if a24api["filter-type"] == "" {
+        a24api["filter-type"] = Con_a24api_type_regexp
+    }
+    if a24api["filter-value"] == "" {
+        a24api["filter-value"] = Con_a24api_value_regexp
     }
 
 // ================================================================================================================================================================
@@ -193,13 +214,14 @@ func main() {
     switch a24api["service"] {
         case "dns":
             switch a24api["function"] {
-                // expected arguments: 0=domain
                 case "list":
                     if len(a24api_args) == 0 {
                         a24api["endpoint-uri"] = "/dns/domains/v1"
                         a24api["endpoint-method"] = "GET"
+                    // expected arguments: 0=domain
                     } else {
-                        a24api["endpoint-uri"] = "/dns/" + a24api_args["argument0"] + "/records/v1"
+                        a24api["domain"] = a24api_args["argument0"]
+                        a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/records/v1"
                         a24api["endpoint-method"] = "GET"
                     }
                 case "create", "update":
@@ -212,32 +234,38 @@ func main() {
                         posArgOffset = 1
                     }
                     // expected arguments: 0=domain, 1(2)=type
-                    a24api["record-type"] = strings.ToLower(a24api_args["argument" + strconv.Itoa(posArgOffset + 1)])
-                    a24api["endpoint-uri"] = "/dns/" + a24api_args["argument0"] + "/" + a24api["record-type"] + "/v1"
+                    a24api["domain"] = a24api_args["argument0"]
+                    a24api["record-type"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 1)]
+                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + a24api["record-type"] + "/v1"
                     switch a24api["record-type"] {
-                        case "a", "aaaa":
+                        case "A", "AAAA":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
                             a24api_request_body["ip"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "cname":
+                        case "CNAME":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
                             a24api_request_body["alias"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "txt":
+                        case "TXT":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
                             a24api_request_body["text"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "sshfp":
+                        case "NS":
+                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
+                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
+                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
+                            a24api_request_body["nameServer"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
+                        case "SSHFP":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=algorithm, 5(6)=fp_type, 6(7)=fingerprint
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
                             a24api_request_body["algorithm"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
                             a24api_request_body["fingerprintType"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
                             a24api_request_body["text"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
-                        case "srv":
+                        case "SRV":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=priority, 5(6)=weight, 6(7)=port, 7(8)=target
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
@@ -245,7 +273,7 @@ func main() {
                             a24api_request_body["weight"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
                             a24api_request_body["port"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
                             a24api_request_body["target"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 7)]
-                        case "tlsa":
+                        case "TLSA":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=certificate_usage, 5(6)=selector, 6(7)=matching_type, 7(8)=hash
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
@@ -253,14 +281,14 @@ func main() {
                             a24api_request_body["selector"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
                             a24api_request_body["matchingType"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
                             a24api_request_body["hash"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 7)]
-                        case "caa":
+                        case "CAA":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=flags, 5(6)=tag, 6(7)=value
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
                             a24api_request_body["flags"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
                             a24api_request_body["tag"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
                             a24api_request_body["caaValue"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
-                        case "mx":
+                        case "MX":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=priority, 5(6)=value
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
                             a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
@@ -271,7 +299,8 @@ func main() {
                     }
                 // expected arguments: 0=domain, 1=hash_id
                 case "delete":
-                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + a24api["record-id"] + "/v1"
+                    a24api["domain"] = a24api_args["argument0"]
+                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + a24api_args["argument1"] + "/v1"
                     a24api["endpoint-method"] = "DELETE"
                     a24api_request_body["hashId"] = a24api_args["argument1"]
                 default:
@@ -318,31 +347,85 @@ func main() {
 // ================================================================================================================================================================
 
 //    if a24api_response.StatusCode == 200 {
-//    var a24api_response_data a24api_response_data_t
-//    json.Unmarshal([]byte(a24api_response_body), &a24api_response_data)
 
     if a24api["format"] == "json" {
-        var out bytes.Buffer
-        json.Indent(&out, a24api_response_body, "", "    ")
-        fmt.Printf("%s\n", string(out.Bytes()))
+        var pretty_json bytes.Buffer
+        json.Indent(&pretty_json, a24api_response_body, "", "    ")
+        fmt.Printf("%s\n", string(pretty_json.Bytes()))
     } else {
+        // prepare regexp
+        a24api_filter_name, _ := regexp.Compile(a24api["filter-name"])
+        a24api_filter_type, _ := regexp.Compile(a24api["filter-type"])
+        a24api_filter_value, _ := regexp.Compile(a24api["filter-value"])
 
         switch a24api["service"] {
             case "dns":
                 switch a24api["function"] {
                     case "list":
+                        // expected structure [ "domainA", "domainB" ]
                         if len(a24api_args) == 0 {
-
-
+                            var structured_data []string
+                            json.Unmarshal([]byte(a24api_response_body), &structured_data)
+                            w := new(tabwriter.Writer)
+                            w.Init(os.Stdout, 0, 8, 1, ' ', 0)
+                            for _, element := range structured_data {
+                                if a24api_filter_name.MatchString(element) {
+                                    fmt.Fprintf(w, "%s\n", element)
+                                }
+                            }
+                            w.Flush()
                         } else {
-
+                        // expected structure [ { "variableA": "value", "variableB": "value" }, { "variableA": "value", "variableB": "value" } ]
+                            var structured_data []map[string]interface{}
+                            json.Unmarshal([]byte(a24api_response_body), &structured_data)
+                            //fmt.Printf("%v\n", structured_data)
+                            w := new(tabwriter.Writer)
+                            w.Init(os.Stdout, 0, 8, 1, ' ', 0)
+                            for _, element := range structured_data {
+                                if a24api_filter_type.MatchString(element["type"].(string)) {
+                                    switch element["type"].(string) {
+                                        case "A", "AAAA":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["ip"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["ip"].(string))
+                                            }
+                                        case "CNAME":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["alias"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["alias"].(string))
+                                            }
+                                        case "TXT":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["text"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t\"%s\"\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["text"].(string))
+                                            }
+                                        case "NS":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["nameServer"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["nameServer"].(string))
+                                            }
+                                        case "SSHFP":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["algorithm"].(float64), element["fingerprintType"].(float64), element["text"].(string))
+                                            }
+                                        case "SRV":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["weight"].(float64), element["port"].(float64), element["target"].(string))
+                                            }
+                                        case "TLSA":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["certificateUsage"].(float64), element["selector"].(float64), element["matchingType"].(float64), element["hash"].(string))
+                                            }
+                                        case "CAA":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["flags"].(float64), element["tag"].(string), element["caaValue"].(string))
+                                            }
+                                        case "MX":
+                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["mailserver"].(string))
+                                            }
+                                    }
+                                }
+                            }
+                            w.Flush()
                         }
                 }
         }
-
-        var out bytes.Buffer
-        json.Indent(&out, a24api_response_body, "", "    ")
-        fmt.Printf("%s\n", string(out.Bytes()))
     }
-
 }
