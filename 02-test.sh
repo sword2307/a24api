@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 TESTDOMAIN=$1
 BINARYNAME="a24api"
 
