@@ -8,7 +8,6 @@ import (
     "io/ioutil"
     "net/http"
     "path/filepath"
-    "log"
     "strconv"
     "text/tabwriter"
     "regexp"
@@ -29,8 +28,17 @@ type a24api_config_file_t struct {
     a24api_token string
 }
 
+func printApiMessage(data []byte, exit_code int) {
+    var structured_data map[string]interface{}
+    json.Unmarshal([]byte(data), &structured_data)
+    fmt.Printf("%g %s (%s)\n", structured_data["status"].(float64), structured_data["error"].(string), structured_data["message"].(string))
+    if exit_code > -1 {
+        os.Exit(exit_code)
+    }
+}
+
 func printHelp() {
-    log.Println(`Usage: a24api [options] <service> <function> [parameters]
+    fmt.Println(`Usage: a24api [options] <service> <function> [parameters]
 
 Options:
     -c|--config <path>            Path to config file. Default is a24api-conf.json.
@@ -139,7 +147,7 @@ func main() {
                 posArgIndex++
             // exit on unexpected argument
             } else {
-                log.Println("Unknown argument or argument out of order.")
+                fmt.Println("Unknown argument or argument out of order.")
                 printHelp()
                 os.Exit(1)
             }
@@ -153,7 +161,7 @@ func main() {
     if a24api["config"] == "" {
         var confPath, err = filepath.Abs(filepath.Dir(os.Args[0]))
         if err != nil {
-            log.Fatalln(err)
+            fmt.Println(err)
         }
         a24api["config"] = confPath + "/" + Con_a24api_config
     }
@@ -199,7 +207,7 @@ func main() {
 // ================================================================================================================================================================
 
     if a24api["service"] == "" || a24api["function"] == "" {
-        log.Println("Service or function not provided.")
+        fmt.Println("Service or function not provided.")
         printHelp()
         os.Exit(1)
     }
@@ -295,7 +303,8 @@ func main() {
                             a24api_request_body["priority"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
                             a24api_request_body["mailserver"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
                         default:
-                            log.Fatalf("Unsupported dns type: %s.\n", a24api["record-type"])
+                            fmt.Printf("Unsupported dns type: %s.\n", a24api["record-type"])
+                            os.Exit(1)
                     }
                 // expected arguments: 0=domain, 1=hash_id
                 case "delete":
@@ -304,10 +313,12 @@ func main() {
                     a24api["endpoint-method"] = "DELETE"
                     a24api_request_body["hashId"] = a24api_args["argument1"]
                 default:
-                    log.Fatalf("Unsupported function: %s.\n", a24api["function"])
+                    fmt.Printf("Unsupported function: %s.\n", a24api["function"])
+                    os.Exit(1)
             }
         default:
-            log.Fatalf("Unsupported service: %s.", a24api["service"])
+            fmt.Printf("Unsupported service: %s.", a24api["service"])
+            os.Exit(1)
     }
 
 // ================================================================================================================================================================
@@ -318,12 +329,14 @@ func main() {
 
     a24api_request_body_json, err := json.Marshal(a24api_request_body)
     if err != nil {
-        log.Fatalln(err)
+        fmt.Println(err)
+        os.Exit(1)
     }
 
     a24api_request, err := http.NewRequest(a24api["endpoint-method"], a24api["endpoint"] + a24api["endpoint-uri"], bytes.NewBuffer(a24api_request_body_json))
     if err != nil {
-        log.Fatalln(err)
+        fmt.Println(err)
+        os.Exit(1)
     }
 
     a24api_request.Header.Set("Content-type", "application/json")
@@ -332,21 +345,21 @@ func main() {
 
     a24api_response, err := a24api_client.Do(a24api_request)
     if err != nil {
-        log.Fatalln(err)
+        fmt.Println(err)
+        os.Exit(1)
     }
 
     defer a24api_response.Body.Close()
 
     a24api_response_body, err := ioutil.ReadAll(a24api_response.Body)
     if err != nil {
-        log.Fatalln(err)
+        fmt.Println(err)
+        os.Exit(1)
     }
 
 // ================================================================================================================================================================
 // PROCESS RESPONSE
 // ================================================================================================================================================================
-
-//    if a24api_response.StatusCode == 200 {
 
     if a24api["format"] == "json" {
         var pretty_json bytes.Buffer
@@ -360,6 +373,9 @@ func main() {
 
         switch a24api["service"] {
             case "dns":
+                if (a24api_response.StatusCode != 200) && (a24api_response.StatusCode != 204) {
+                    printApiMessage(a24api_response_body, 2)
+                }
                 switch a24api["function"] {
                     case "list":
                         // expected structure [ "domainA", "domainB" ]
@@ -418,13 +434,15 @@ func main() {
                                             }
                                         case "MX":
                                             if a24api_filter_name.MatchString(element["name"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["mailserver"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["mailserver"].(string))
                                             }
                                     }
                                 }
                             }
                             w.Flush()
                         }
+                    case "create", "update", "delete":
+                        printApiMessage(a24api_response_body, 0)
                 }
         }
     }
