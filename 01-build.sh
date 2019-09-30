@@ -8,6 +8,7 @@ for platform in 386 amd64 arm arm64; do
         if [ "${os}" == "windows" -o "${os}" == "darwin" ] && [ "${platform}" == "arm" -o "${platform}" == "arm64" ]; then continue; fi
 
         BINARYNAME=a24api-${os}-${platform}
+        if [ "${os}" == "windows" ]; then BINARYNAME="${BINARYNAME}.exe"; fi
 
         echo "################################################################################"
         echo "## Building for ${os}-${platform}"
