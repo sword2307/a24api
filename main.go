@@ -11,6 +11,7 @@ import (
     "strconv"
     "text/tabwriter"
     "regexp"
+    "strings"
 )
 
 const (
@@ -23,27 +24,54 @@ const (
     Con_a24api_value_regexp = ".*"
 )
 
+var Con_a24api_codes = map[string]map[string]map[int]string {
+    "dns": map[string]map[int]string {
+        "list": map[int]string {
+            200: "OK",
+            401: "TOKEN_INVALID",
+            403: "UNAUTHORIZED",
+            429: "TOO_MANY_REQUESTS",
+            500: "SYSTEM_ERROR",
+        },
+        "delete": map[int]string {
+            204: "OK",
+            400: "DNS_RECORD_TO_DELETE_NOT_FOUND",
+            401: "TOKEN_INVALID",
+            403: "UNAUTHORIZED",
+            429: "TOO_MANY_REQUESTS",
+            500: "SYSTEM_ERROR",
+        },
+        "update": map[int]string {
+            204: "OK",
+            400: "DNS_RECORD_TO_UPDATE_NOT_FOUND",
+            401: "TOKEN_INVALID",
+            403: "UNAUTHORIZED",
+            429: "TOO_MANY_REQUESTS",
+            500: "SYSTEM_ERROR",
+        },
+        "create": map[int]string {
+            204: "OK",
+            400: "VALIDATION_ERROR",
+            401: "TOKEN_INVALID",
+            403: "UNAUTHORIZED",
+            429: "TOO_MANY_REQUESTS",
+            500: "SYSTEM_ERROR",
+        },
+    },
+}
+
 type a24api_config_file_t struct {
     a24api_endpoint string
     a24api_token string
-}
-
-func printApiMessage(data []byte, exit_code int) {
-    var structured_data map[string]interface{}
-    json.Unmarshal([]byte(data), &structured_data)
-    fmt.Printf("%g %s (%s)\n", structured_data["status"].(float64), structured_data["error"].(string), structured_data["message"].(string))
-    if exit_code > -1 {
-        os.Exit(exit_code)
-    }
 }
 
 func printHelp() {
     fmt.Println(`Usage: a24api [options] <service> <function> [parameters]
 
 Options:
-    -c|--config <path>            Path to config file. Default is a24api-conf.json.
-    -e|--endpoint <url>           Active24 REST API url.
-    -t|--token <token>            Active24 REST API token.
+    -c|--config <path>            Path to config file. Default is a24api-conf.json. Can be also set via env A24API_CONFIG.
+    -e|--endpoint <url>           Active24 REST API url. Can be also set via env A24API_ENDPOINT.
+    -t|--token <token>            Active24 REST API token. Can be also set via env A24API_TOKEN.
     -f|--format <json|inline>     Output format (default: inline).
 
 Services, functions and parameters:
@@ -70,6 +98,7 @@ Services, functions and parameters:
 
 Comments:
     filters are applied only to inline format
+    parameters precedence is config_file > command_line > environment > defaults
 
 `)
 
@@ -244,7 +273,7 @@ func main() {
                     // expected arguments: 0=domain, 1(2)=type
                     a24api["domain"] = a24api_args["argument0"]
                     a24api["record-type"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 1)]
-                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + a24api["record-type"] + "/v1"
+                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + strings.ToLower(a24api["record-type"]) + "/v1"
                     switch a24api["record-type"] {
                         case "A", "AAAA":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
@@ -374,7 +403,8 @@ func main() {
         switch a24api["service"] {
             case "dns":
                 if (a24api_response.StatusCode != 200) && (a24api_response.StatusCode != 204) {
-                    printApiMessage(a24api_response_body, 2)
+                    fmt.Printf("%d %s\n", a24api_response.StatusCode, Con_a24api_codes[a24api["service"]][a24api["function"]][a24api_response.StatusCode])
+                    os.Exit(2)
                 }
                 switch a24api["function"] {
                     case "list":
@@ -442,7 +472,8 @@ func main() {
                             w.Flush()
                         }
                     case "create", "update", "delete":
-                        printApiMessage(a24api_response_body, 0)
+                        fmt.Printf("%d %s\n", a24api_response.StatusCode, Con_a24api_codes[a24api["service"]][a24api["function"]][a24api_response.StatusCode])
+                        os.Exit(0)
                 }
         }
     }
