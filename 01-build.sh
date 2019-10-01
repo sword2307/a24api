@@ -13,7 +13,7 @@ for platform in 386 amd64 arm arm64; do
         echo "################################################################################"
         echo "## Building for ${os}-${platform}"
         echo "################################################################################"
-        env GOOS=${os} GOARCH=${platform} go build -ldflags="-s -w" -o ./build/${BINARYNAME} && /usr/bin/upx --brute ./build/${BINARYNAME}
+        env CGO_ENABLED=0 GOOS=${os} GOARCH=${platform} go build -ldflags="-s -w" -o ./build/${BINARYNAME} && /usr/bin/upx --brute ./build/${BINARYNAME}
 
     done
 done
