@@ -1,5 +1,9 @@
 # a24api
-Active24 REST API Client Implementation In GO
+Active24 REST API Command Line Client Implementation In GO
+
+API Provider: ACTIVE 24, s.r.o
+
+API URL: https://sandboxapi.active24.com
 
 
 #### Implemented services/functions
