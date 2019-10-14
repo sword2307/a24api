@@ -25,37 +25,30 @@ const (
 )
 
 var Con_a24api_codes = map[string]map[string]map[int]string {
-    "dns": map[string]map[int]string {
-        "list": map[int]string {
+    "_shared_": map[string]map[int]string {
+        "_codes_": map[int]string {
             200: "OK",
+            204: "OK",
             401: "TOKEN_INVALID",
             403: "UNAUTHORIZED",
             429: "TOO_MANY_REQUESTS",
             500: "SYSTEM_ERROR",
         },
+    },
+    "dns": map[string]map[int]string {
         "delete": map[int]string {
-            204: "OK",
             400: "DNS_RECORD_TO_DELETE_NOT_FOUND",
-            401: "TOKEN_INVALID",
-            403: "UNAUTHORIZED",
-            429: "TOO_MANY_REQUESTS",
-            500: "SYSTEM_ERROR",
         },
         "update": map[int]string {
-            204: "OK",
             400: "DNS_RECORD_TO_UPDATE_NOT_FOUND",
-            401: "TOKEN_INVALID",
-            403: "UNAUTHORIZED",
-            429: "TOO_MANY_REQUESTS",
-            500: "SYSTEM_ERROR",
         },
         "create": map[int]string {
-            204: "OK",
             400: "VALIDATION_ERROR",
-            401: "TOKEN_INVALID",
-            403: "UNAUTHORIZED",
-            429: "TOO_MANY_REQUESTS",
-            500: "SYSTEM_ERROR",
+        },
+    },
+    "domains": map[string]map[int]string {
+        "detail": map[int]string {
+            400: "OBJECT_ID_DOESNT_EXIST",
         },
     },
 }
@@ -63,6 +56,15 @@ var Con_a24api_codes = map[string]map[string]map[int]string {
 type a24api_config_file_t struct {
     a24api_endpoint string
     a24api_token string
+}
+
+func getCodeText(code int, service string, function string) (code_text string) {
+    if code_text = Con_a24api_codes[service][function][code]; code_text == "" {
+        if code_text = Con_a24api_codes["_shared_"]["_codes_"][code]; code_text == "" {
+            code_text = "UNKNOWN_CODE"
+        }
+    }
+    return
 }
 
 func printHelp() {
@@ -77,7 +79,7 @@ Options:
 Services, functions and parameters:
     dns
         list [-fn <name regex filter>]
-        list <domain> [-ft <type regex filter>] [-fn <name regex filter>] [-fv <ip|alias|text|mailserver|caavalue|nameserver regex filter>]
+        list <domain> [-ft <type regex filter>] [-fn <name regex filter>] [-fv <value regex filter>]
         delete <domain> <hash_id>
         create <domain>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <ip|alias|text>
@@ -95,6 +97,13 @@ Services, functions and parameters:
             <TLSA> <name> <ttl> <certificate_usage> <selector> <matching_type> <hash>
             <CAA> <name> <ttl> <flags> <tag> <caavalue>
             <MX> <name> <ttl> <priority> <mailserver>
+
+    domains
+        list [-fn <name regex filter>]
+        auth <domain> <language>
+        detail <domain>
+        update <domain> <admin_contact>
+        transfer <domain> <auth>
 
 Comments:
     filters are applied only to inline format
@@ -403,7 +412,7 @@ func main() {
         switch a24api["service"] {
             case "dns":
                 if (a24api_response.StatusCode != 200) && (a24api_response.StatusCode != 204) {
-                    fmt.Printf("%d %s\n", a24api_response.StatusCode, Con_a24api_codes[a24api["service"]][a24api["function"]][a24api_response.StatusCode])
+                    fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, a24api["service"], a24api["function"]))
                     os.Exit(2)
                 }
                 switch a24api["function"] {
@@ -447,23 +456,23 @@ func main() {
                                                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["nameServer"].(string))
                                             }
                                         case "SSHFP":
-                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["text"].(string)) {
                                                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["algorithm"].(float64), element["fingerprintType"].(float64), element["text"].(string))
                                             }
                                         case "SRV":
-                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["target"].(string)) {
                                                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["weight"].(float64), element["port"].(float64), element["target"].(string))
                                             }
                                         case "TLSA":
-                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["hash"].(string)) {
                                                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["certificateUsage"].(float64), element["selector"].(float64), element["matchingType"].(float64), element["hash"].(string))
                                             }
                                         case "CAA":
-                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["caaValue"].(string)) {
                                                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["flags"].(float64), element["tag"].(string), element["caaValue"].(string))
                                             }
                                         case "MX":
-                                            if a24api_filter_name.MatchString(element["name"].(string)) {
+                                            if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["mailserver"].(string)) {
                                                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["mailserver"].(string))
                                             }
                                     }
@@ -472,7 +481,7 @@ func main() {
                             w.Flush()
                         }
                     case "create", "update", "delete":
-                        fmt.Printf("%d %s\n", a24api_response.StatusCode, Con_a24api_codes[a24api["service"]][a24api["function"]][a24api_response.StatusCode])
+                        fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, a24api["service"], a24api["function"]))
                         os.Exit(0)
                 }
         }
