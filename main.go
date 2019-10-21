@@ -6,6 +6,8 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
+    "net"
+    "time"
     "net/http"
     "path/filepath"
     "strconv"
@@ -19,6 +21,7 @@ const (
     Con_a24api_token = "123456qwerty-ok"
     Con_a24api_config = "a24api-conf.json"
     Con_a24api_format = "inline"
+    Con_a24api_dial = "tcp"
     Con_a24api_name_regexp = ".*"
     Con_a24api_type_regexp = ".*"
     Con_a24api_value_regexp = ".*"
@@ -75,6 +78,8 @@ Options:
     -e|--endpoint <url>           Active24 REST API url. Can be also set via env A24API_ENDPOINT.
     -t|--token <token>            Active24 REST API token. Can be also set via env A24API_TOKEN.
     -f|--format <json|inline>     Output format (default: inline).
+    -4                            Use ipv4.
+    -6                            Use ipv6.
 
 Services, functions and parameters:
     dns
@@ -161,6 +166,12 @@ func main() {
             } else if (element == "-f" || element == "--format") && (index < indexMax) && (a24api["service"] == "") {
                 a24api["format"] = params[index + 1]
                 indexUsedFlag = index + 1
+            // set dial ip version to 4
+            } else if (element == "-4") && (a24api["service"] == "") {
+                a24api["dial"] = "tcp4"
+            // set dial ip version to 6
+            } else if (element == "-6") && (a24api["service"] == "") {
+                a24api["dial"] = "tcp6"
             // set api service
             } else if (element == "dns" || element == "domain") && (a24api["service"] == "") {
                 a24api["service"] = element
@@ -220,6 +231,9 @@ func main() {
     }
     if a24api["filter-value"] == "" {
         a24api["filter-value"] = Con_a24api_value_regexp
+    }
+    if a24api["dial"] == "" {
+        a24api["dial"] = Con_a24api_dial
     }
 
 // ================================================================================================================================================================
@@ -363,7 +377,17 @@ func main() {
 // MAKE REQUEST
 // ================================================================================================================================================================
 
-    a24api_client := &http.Client{}
+    a24api_transport := &http.Transport{
+        Dial: (func(network, addr string) (net.Conn, error) {
+            return (&net.Dialer{
+                Timeout:        10 * time.Second,
+                LocalAddr:      nil,
+                DualStack:      false,
+            }).Dial(a24api["dial"], addr)
+        }),
+    }
+
+    a24api_client := &http.Client{Transport: a24api_transport}
 
     a24api_request_body_json, err := json.Marshal(a24api_request_body)
     if err != nil {
