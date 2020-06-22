@@ -24,36 +24,9 @@ var (
     C_a24apiclient_config = map[string]string {
         "endpoint": "https://sandboxapi.active24.com",
         "token": "123456qwerty-ok",
-        "dial": "tcp",
+        "network": "tcp",
+        "dualstack": "true",
         "timeout": "30",
-    }
-    C_a24apiclient_codes = map[string]map[string]map[int]string {
-        "_shared_": map[string]map[int]string {
-            "_codes_": map[int]string {
-                200: "OK",
-                204: "OK",
-                401: "TOKEN_INVALID",
-                403: "UNAUTHORIZED",
-                429: "TOO_MANY_REQUESTS",
-                500: "SYSTEM_ERROR",
-            },
-        },
-        "dns": map[string]map[int]string {
-            "delete": map[int]string {
-                400: "DNS_RECORD_TO_DELETE_NOT_FOUND",
-            },
-            "update": map[int]string {
-                400: "DNS_RECORD_TO_UPDATE_NOT_FOUND",
-            },
-            "create": map[int]string {
-                400: "VALIDATION_ERROR",
-            },
-        },
-        "domains": map[string]map[int]string {
-            "detail": map[int]string {
-                400: "OBJECT_ID_DOESNT_EXIST",
-            },
-        },
     }
 )
 
@@ -63,16 +36,21 @@ var (
 
 type TA24ApiClient struct {
     Config                          map[string]string
+    HttpClient                      *http.Client
 }
 
 func NewA24ApiClient(config map[string]string) *TA24Client {
     c := &TA24ApiClient{ Config: config }
     c.mergeConfig()
+    c.HttpClient = newHttpClient()
 
     return c
 }
 
 func (c *TA24ApiClient) mergeConfig() {
+    if c.Config == nil {
+        c.Config = make(map[string]string)
+    }
     for key, defaultValue := range C_a24apiclient_config {
         if _, isPresent := s.Config[key]; !isPresent {
             c.Config[key] = defaultValue
@@ -89,7 +67,7 @@ func (c *TA24ApiClient) getCodeText(code int, service string, function string) (
     return
 }
 
-func newA24HttpTransport(timeout, dial string) *http.Transport {
+func newHttpTransport(timeout, network string) *http.Transport {
     t := &http.Transport{
         Dial: (func(network, addr string) (net.Conn, error) {
             return (&net.Dialer{
@@ -102,7 +80,10 @@ func newA24HttpTransport(timeout, dial string) *http.Transport {
     return t
 }
 
-func newA24HttpClient(http_transport *http.Transport) *http.Client {
+func newHttpClient(http_transport *http.Transport) *http.Client {
+    if http_transport == nil {
+        http_transport = newHttpTransport(C_a24apiclient_config["network"], C_a24apiclient_config["timeout"])
+    }
     s := &http.Client{Transport: http_transport}
     return s
 }
