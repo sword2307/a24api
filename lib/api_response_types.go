@@ -1,41 +1,44 @@
 package a24apiclient
 
+import (
+)
+
 type DnsRecordA struct {
-    hashId         string
-    type           string
-    ip             string
-    name           string
-    ttl            float64
+    HashId         string
+    Type           string
+    Ip             string
+    Name           string
+    Ttl            float64
 }
 
 type DnsRecordAAAA struct {
     hashId         string
-    type           string
+    Type           string
     ip             string
     name           string
     ttl            float64
 }
 
 type DnsRecordCNAME struct {
-    hashId         string
-    type           string
-    name           string
-    alias          string
-    ttl            float64
+    HashId         string
+    Type           string
+    Name           string
+    Alias          string
+    Ttl            float64
 }
 
 type DnsRecordTXT struct {
-    hashId         string
-    type           string
-    name           string
-    text           string
-    ttl            float64
+    HashId         string
+    Type           string
+    Name           string
+    Text           string
+    Ttl            float64
 }
 
 type DnsRecordNS struct {
-    hashId         string
-    type           string
-    name           string
-    nameServer     string
-    ttl            float64
+    HashId         string
+    Type           string
+    Name           string
+    NameServer     string
+    Ttl            float64
 }
