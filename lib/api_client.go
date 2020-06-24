@@ -28,33 +28,33 @@ var (
 // TYPES
 // =============================================================================================================================================================
 
-type TA24ApiClient struct {
+type T_a24apiclient struct {
     Config                          map[string]string
     HttpClient                      *http.Client
 }
 
-func NewA24ApiClient(config map[string]string) *TA24Client {
-    c := &TA24ApiClient{ Config: config }
+func New_a24apiclient(config map[string]string) *T_a24apiclient {
+    c := &T_a24apiclient{ Config: config }
     c.mergeConfig()
-    c.HttpClient = newHttpClient()
+    c.HttpClient = c.newHttpClient()
 
     return c
 }
 
-func (c *TA24ApiClient) mergeConfig() {
+func (c *T_a24apiclient) mergeConfig() {
     if c.Config == nil {
         c.Config = make(map[string]string)
     }
     for key, defaultValue := range C_a24apiclient_config {
-        if _, isPresent := s.Config[key]; !isPresent {
+        if _, isPresent := c.Config[key]; !isPresent {
             c.Config[key] = defaultValue
         }
     }
 }
 
-func (c *TA24ApiClient) getCodeText(code int, service string, function string) (code_text string) {
-    if code_text = C_a24api_codes[service][function][code]; code_text == "" {
-        if code_text = C_a24api_codes["_shared_"]["_codes_"][code]; code_text == "" {
+func (c *T_a24apiclient) getCodeText(code int, service string, function string) (code_text string) {
+    if code_text = C_a24apiclient_codes[service][function][code]; code_text == "" {
+        if code_text = C_a24apiclient_codes["_shared_"]["_codes_"][code]; code_text == "" {
             code_text = "UNKNOWN_CODE"
         }
     }
@@ -62,10 +62,12 @@ func (c *TA24ApiClient) getCodeText(code int, service string, function string) (
 }
 
 func newHttpTransport(timeout, network string) *http.Transport {
+    l_timeout_i, _ := strconv.Atoi(timeout)
+    l_timeout_d := time.Duration(l_timeout_i) * time.Second
     t := &http.Transport{
         Dial: (func(network, addr string) (net.Conn, error) {
             return (&net.Dialer{
-                Timeout:        strconv.Atoi(timeout) * time.Second,
+                Timeout:        l_timeout_d,
                 LocalAddr:      nil,
                 DualStack:      true,
             }).Dial(network, addr)
@@ -74,7 +76,7 @@ func newHttpTransport(timeout, network string) *http.Transport {
     return t
 }
 
-func (c *TA24ApiClient) newHttpClient() *http.Client {
+func (c *T_a24apiclient) newHttpClient() *http.Client {
     http_transport := newHttpTransport(C_a24apiclient_config["network"], C_a24apiclient_config["timeout"])
     s := &http.Client{Transport: http_transport}
     return s
@@ -84,74 +86,72 @@ func (c *TA24ApiClient) newHttpClient() *http.Client {
 // API FUNCTIONS
 // =============================================================================================================================================================
 
-func (c *TA24ApiClient) doApiRequest(method, endpoint string, body map[string]string) ([]byte, error) {
+func (c *T_a24apiclient) doApiRequest(method, endpoint string, body map[string]string) (int, []byte, error) {
 
-    if body_json, err := json.Marshal(body); err != nil {
-        return nil, err
+    body_json, err := json.Marshal(body)
+    if err != nil {
+        return 0, nil, err
     }
 
-    if a24api_request, err := http.NewRequest(a24api["endpoint-method"], a24api["endpoint"] + a24api["endpoint-uri"], bytes.NewBuffer(a24api_request_body_json)); err != nil {
-        return nil, err
-    }
-
-    a24api_request.Header.Set("Content-type", "application/json")
-    a24api_request.Header.Set("Accept", "application/json")
-    a24api_request.Header.Set("Authorization", "Bearer " + a24api["token"])
-
-    if a24api_response, err := a24api_client.Do(a24api_request); err != nil {
-        return nil, err
-    }
-
-    defer a24api_response.Body.Close()
-
-    if a24api_response_body, err := ioutil.ReadAll(a24api_response.Body); err != nil {
-        return nil, err
-    } else {
-        return a24api_response_body, nil
-    }
-
-}
-
-func (c *TA24ApiClient) DnsDomains() ([]byte, error) {
-
-    if a24api_request, err := c.HttpClient.NewRequest("GET", c.Config["endpoint"] + "/dns/domains/v1", bytes.NewBuffer(a24api_request_body_json)); err != nil {
-        return nil, err
+    a24api_request, err := http.NewRequest(method, endpoint, bytes.NewBuffer(body_json))
+    if err != nil {
+        return 0, nil, err
     }
 
     a24api_request.Header.Set("Content-type", "application/json")
     a24api_request.Header.Set("Accept", "application/json")
     a24api_request.Header.Set("Authorization", "Bearer " + c.Config["token"])
 
-    if a24api_response, err := a24api_client.Do(a24api_request); err != nil {
-        return nil, error
+    a24api_response, err := c.HttpClient.Do(a24api_request)
+    if err != nil {
+        return 0, nil, err
     }
 
     defer a24api_response.Body.Close()
 
     if a24api_response_body, err := ioutil.ReadAll(a24api_response.Body); err != nil {
-        return nil, error
+        return 0, nil, err
     } else {
-        return a24api_response_body, nil
+        return a24api_response.StatusCode, a24api_response_body, nil
     }
+
 }
 
-// List dns records
-func (c *TA24ApiClient) DnsRecords(domain string) ([]byte, error) {
-    return nil, nil
+// List domains
+func (c *T_a24apiclient) DnsListDomains() (int, []byte, error) {
+
+    a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/domains/v1", nil);
+
+    return a24api_response_code, a24api_response_body, err
+
+}
+
+// List domain dns records
+func (c *T_a24apiclient) DnsListRecords(domain string) (int, []byte, error) {
+
+    a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/" + domain + "/records/v1", nil);
+
+    return a24api_response_code, a24api_response_body, err
+
 }
 
 // Create dns record
-func (c *TA24ApiClient) DnsCreate(record interface {}) ([]byte, error) {
-    return nil, nil
+func (c *T_a24apiclient) DnsCreate(record interface {}) (int, []byte, error) {
+
+    return 0, nil, nil
+
 }
 
 // Update dns record
-func (c *TA24ApiClient) DnsUpdate(record interface {}) ([]byte, error) {
-    return nil, nil
+func (c *T_a24apiclient) DnsUpdate(record interface {}) (int, []byte, error) {
+
+    return 0, nil, nil
+
 }
 
 // Delete dns record
-func (c *TA24ApiClient) DnsDelete(record interface {}) ([]byte, error) {
-    return nil, nil
-}
+func (c *T_a24apiclient) DnsDelete(record interface {}) (int, []byte, error) {
 
+    return 0, nil, nil
+
+}
