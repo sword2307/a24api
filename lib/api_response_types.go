@@ -3,7 +3,7 @@ package a24apiclient
 import (
 )
 
-type DnsRecordA struct {
+type T_DnsRecordA struct {
     HashId         string
     Type           string
     Ip             string
@@ -11,7 +11,7 @@ type DnsRecordA struct {
     Ttl            float64
 }
 
-type DnsRecordAAAA struct {
+type T_DnsRecordAAAA struct {
     hashId         string
     Type           string
     ip             string
@@ -19,7 +19,7 @@ type DnsRecordAAAA struct {
     ttl            float64
 }
 
-type DnsRecordCNAME struct {
+type T_DnsRecordCNAME struct {
     HashId         string
     Type           string
     Name           string
@@ -27,7 +27,7 @@ type DnsRecordCNAME struct {
     Ttl            float64
 }
 
-type DnsRecordTXT struct {
+type T_DnsRecordTXT struct {
     HashId         string
     Type           string
     Name           string
@@ -35,7 +35,7 @@ type DnsRecordTXT struct {
     Ttl            float64
 }
 
-type DnsRecordNS struct {
+type T_DnsRecordNS struct {
     HashId         string
     Type           string
     Name           string

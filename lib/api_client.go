@@ -15,11 +15,10 @@ import (
 // =============================================================================================================================================================
 
 var (
-    C_a24apiclient_config = map[string]string {
+    C_A24ApiClient_Config = map[string]string {
         "endpoint": "https://sandboxapi.active24.com",
         "token": "123456qwerty-ok",
-        "network": "tcp",
-        "dualstack": "true",
+        "network": "tcp",                                // [tcp|tcp4|tcp6]
         "timeout": "30",
     }
 )
@@ -28,33 +27,40 @@ var (
 // TYPES
 // =============================================================================================================================================================
 
-type T_a24apiclient struct {
+type T_A24ApiClient_Config_File struct {
+    Endpoint   string
+    Token      string
+    Network    string
+    Timeout    string
+}
+
+type T_A24ApiClient struct {
     Config                          map[string]string
     HttpClient                      *http.Client
 }
 
-func New_a24apiclient(config map[string]string) *T_a24apiclient {
-    c := &T_a24apiclient{ Config: config }
+func New_A24ApiClient(config map[string]string) *T_A24ApiClient {
+    c := &T_A24ApiClient{ Config: config }
     c.mergeConfig()
     c.HttpClient = c.newHttpClient()
 
     return c
 }
 
-func (c *T_a24apiclient) mergeConfig() {
+func (c *T_A24ApiClient) mergeConfig() {
     if c.Config == nil {
         c.Config = make(map[string]string)
     }
-    for key, defaultValue := range C_a24apiclient_config {
+    for key, defaultValue := range C_A24ApiClient_Config {
         if _, isPresent := c.Config[key]; !isPresent {
             c.Config[key] = defaultValue
         }
     }
 }
 
-func (c *T_a24apiclient) getCodeText(code int, service string, function string) (code_text string) {
-    if code_text = C_a24apiclient_codes[service][function][code]; code_text == "" {
-        if code_text = C_a24apiclient_codes["_shared_"]["_codes_"][code]; code_text == "" {
+func (c *T_A24ApiClient) getCodeText(code int, service string, function string) (code_text string) {
+    if code_text = C_A24ApiClient_Codes[service][function][code]; code_text == "" {
+        if code_text = C_A24ApiClient_Codes["_shared_"]["_codes_"][code]; code_text == "" {
             code_text = "UNKNOWN_CODE"
         }
     }
@@ -62,22 +68,26 @@ func (c *T_a24apiclient) getCodeText(code int, service string, function string) 
 }
 
 func newHttpTransport(timeout, network string) *http.Transport {
+    var l_dualstack bool = true
     l_timeout_i, _ := strconv.Atoi(timeout)
     l_timeout_d := time.Duration(l_timeout_i) * time.Second
+    if !(network == "tcp") {
+        l_dualstack = false
+    }
     t := &http.Transport{
         Dial: (func(network, addr string) (net.Conn, error) {
             return (&net.Dialer{
                 Timeout:        l_timeout_d,
                 LocalAddr:      nil,
-                DualStack:      true,
+                DualStack:      l_dualstack,
             }).Dial(network, addr)
         }),
     }
     return t
 }
 
-func (c *T_a24apiclient) newHttpClient() *http.Client {
-    http_transport := newHttpTransport(C_a24apiclient_config["network"], C_a24apiclient_config["timeout"])
+func (c *T_A24ApiClient) newHttpClient() *http.Client {
+    http_transport := newHttpTransport(c.Config["network"], c.Config["timeout"])
     s := &http.Client{Transport: http_transport}
     return s
 }
@@ -86,7 +96,7 @@ func (c *T_a24apiclient) newHttpClient() *http.Client {
 // API FUNCTIONS
 // =============================================================================================================================================================
 
-func (c *T_a24apiclient) doApiRequest(method, endpoint string, body map[string]string) (int, []byte, error) {
+func (c *T_A24ApiClient) doApiRequest(method, endpoint string, body map[string]string) (int, []byte, error) {
 
     body_json, err := json.Marshal(body)
     if err != nil {
@@ -118,7 +128,7 @@ func (c *T_a24apiclient) doApiRequest(method, endpoint string, body map[string]s
 }
 
 // List domains
-func (c *T_a24apiclient) DnsListDomains() (int, []byte, error) {
+func (c *T_A24ApiClient) DnsListDomains() (int, []byte, error) {
 
     a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/domains/v1", nil);
 
@@ -127,7 +137,7 @@ func (c *T_a24apiclient) DnsListDomains() (int, []byte, error) {
 }
 
 // List domain dns records
-func (c *T_a24apiclient) DnsListRecords(domain string) (int, []byte, error) {
+func (c *T_A24ApiClient) DnsListRecords(domain string) (int, []byte, error) {
 
     a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/" + domain + "/records/v1", nil);
 
@@ -136,21 +146,21 @@ func (c *T_a24apiclient) DnsListRecords(domain string) (int, []byte, error) {
 }
 
 // Create dns record
-func (c *T_a24apiclient) DnsCreate(record interface {}) (int, []byte, error) {
+func (c *T_A24ApiClient) DnsCreate(data map[string]string) (int, []byte, error) {
 
     return 0, nil, nil
 
 }
 
 // Update dns record
-func (c *T_a24apiclient) DnsUpdate(record interface {}) (int, []byte, error) {
+func (c *T_A24ApiClient) DnsUpdate(data map[string]string) (int, []byte, error) {
 
     return 0, nil, nil
 
 }
 
 // Delete dns record
-func (c *T_a24apiclient) DnsDelete(record interface {}) (int, []byte, error) {
+func (c *T_A24ApiClient) DnsDelete(data map[string]string) (int, []byte, error) {
 
     return 0, nil, nil
 

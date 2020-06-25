@@ -12,63 +12,19 @@ import (
     "path/filepath"
     "strconv"
     "text/tabwriter"
-    "regexp"
     "strings"
+    "a24api/lib"
 )
 
 const (
-    Con_a24api_endpoint = "https://sandboxapi.active24.com"
-    Con_a24api_token = "123456qwerty-ok"
-    Con_a24api_config = "a24api-conf.json"
-    Con_a24api_format = "inline"
-    Con_a24api_dial = "tcp"
-    Con_a24api_name_regexp = ".*"
-    Con_a24api_type_regexp = ".*"
-    Con_a24api_value_regexp = ".*"
+    C_A24ApiClient_Configfile string = "a24api-conf.json"
 )
 
-var Con_a24api_codes = map[string]map[string]map[int]string {
-    "_shared_": map[string]map[int]string {
-        "_codes_": map[int]string {
-            200: "OK",
-            204: "OK",
-            401: "TOKEN_INVALID",
-            403: "UNAUTHORIZED",
-            429: "TOO_MANY_REQUESTS",
-            500: "SYSTEM_ERROR",
-        },
-    },
-    "dns": map[string]map[int]string {
-        "delete": map[int]string {
-            400: "DNS_RECORD_TO_DELETE_NOT_FOUND",
-        },
-        "update": map[int]string {
-            400: "DNS_RECORD_TO_UPDATE_NOT_FOUND",
-        },
-        "create": map[int]string {
-            400: "VALIDATION_ERROR",
-        },
-    },
-    "domains": map[string]map[int]string {
-        "detail": map[int]string {
-            400: "OBJECT_ID_DOESNT_EXIST",
-        },
-    },
-}
-
-type a24api_config_file_t struct {
-    a24api_endpoint string
-    a24api_token string
-}
-
-func getCodeText(code int, service string, function string) (code_text string) {
-    if code_text = Con_a24api_codes[service][function][code]; code_text == "" {
-        if code_text = Con_a24api_codes["_shared_"]["_codes_"][code]; code_text == "" {
-            code_text = "UNKNOWN_CODE"
-        }
-    }
-    return
-}
+var (
+    A24ApiClient                        *a24apiclient.T_A24ApiClient
+    A24ApiClientConfig                  map[string]string
+    A24ApiClientArguments               map[string]string
+)
 
 func printHelp() {
     fmt.Println(`Usage: a24api [options] <service> <function> [parameters]
@@ -83,8 +39,8 @@ Options:
 
 Services, functions and parameters:
     dns
-        list [-fn <name regex filter>]
-        list <domain> [-ft <type regex filter>] [-fn <name regex filter>] [-fv <value regex filter>]
+        list
+        list <domain>
         delete <domain> <hash_id>
         create <domain>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <ip|alias|text>
@@ -104,14 +60,13 @@ Services, functions and parameters:
             <MX> <name> <ttl> <priority> <mailserver>
 
     domains
-        list [-fn <name regex filter>]
+        list
         auth <domain> <language>
         detail <domain>
         update <domain> <admin_contact>
         transfer <domain> <auth>
 
 Comments:
-    filters are applied only to inline format
     parameters precedence is config_file > command_line > environment > defaults
 
 `)
@@ -120,16 +75,16 @@ Comments:
 
 func main() {
 
-    a24api := make(map[string]string)
-    a24api_args := make(map[string]string)
+    A24ApiClientConfig := make(map[string]string)
+    A24ApiClientArguments := make(map[string]string)
 
 // ================================================================================================================================================================
 // PARSE ENVIRONMENT
 // ================================================================================================================================================================
 
-    a24api["endpoint"] = os.Getenv("A24API_ENDPOINT")
-    a24api["token"] = os.Getenv("A24API_TOKEN")
-    a24api["config"] = os.Getenv("A24API_CONFIG")
+    A24ApiClientConfig["endpoint"] = os.Getenv("A24API_ENDPOINT")
+    A24ApiClientConfig["token"] = os.Getenv("A24API_TOKEN")
+    A24ApiClientConfig["config"] = os.Getenv("A24API_CONFIG")
 
 // ================================================================================================================================================================
 // PARSE COMMAND-LINE
@@ -151,48 +106,36 @@ func main() {
                 printHelp()
                 os.Exit(0)
             // set config file
-            } else if (element == "-c" || element == "--config") && (index < indexMax) && (a24api["service"] == "") {
-                a24api["config"] = params[index + 1]
+            } else if (element == "-c" || element == "--config") && (index < indexMax) && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientConfig["config"] = params[index + 1]
                 indexUsedFlag = index + 1
             // set api endpoint
-            } else if (element == "-e" || element == "--endpoint") && (index < indexMax) && (a24api["service"] == "") {
-                a24api["endpoint"] = params[index + 1]
+            } else if (element == "-e" || element == "--endpoint") && (index < indexMax) && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientConfig["endpoint"] = params[index + 1]
                 indexUsedFlag = index + 1
             // set api token
-            } else if (element == "-t" || element == "--token") && (index < indexMax) && (a24api["service"] == "") {
-                a24api["token"] = params[index + 1]
+            } else if (element == "-t" || element == "--token") && (index < indexMax) && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientConfig["token"] = params[index + 1]
                 indexUsedFlag = index + 1
             // set output format
-            } else if (element == "-f" || element == "--format") && (index < indexMax) && (a24api["service"] == "") {
-                a24api["format"] = params[index + 1]
+            } else if (element == "-f" || element == "--format") && (index < indexMax) && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientArguments["format"] = params[index + 1]
                 indexUsedFlag = index + 1
-            // set dial ip version to 4
-            } else if (element == "-4") && (a24api["service"] == "") {
-                a24api["dial"] = "tcp4"
-            // set dial ip version to 6
-            } else if (element == "-6") && (a24api["service"] == "") {
-                a24api["dial"] = "tcp6"
+            // set network ip version to 4
+            } else if (element == "-4") && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientConfig["network"] = "tcp4"
+            // set network ip version to 6
+            } else if (element == "-6") && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientConfig["network"] = "tcp6"
             // set api service
-            } else if (element == "dns" || element == "domain") && (a24api["service"] == "") {
-                a24api["service"] = element
+            } else if (element == "dns" || element == "domain") && (A24ApiClientConfig["service"] == "") {
+                A24ApiClientArguments["service"] = element
             // set api function
-            } else if (element == "list" || element == "delete" || element == "create" || element == "update") && (a24api["service"] != "") {
-                a24api["function"] = element
-            // set name filter
-            } else if (element == "-fn") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
-                a24api["filter-name"] = params[index + 1]
-                indexUsedFlag = index + 1
-            // set type filter
-            } else if (element == "-ft") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
-                a24api["filter-type"] = params[index + 1]
-                indexUsedFlag = index + 1
-            // set value filter
-            } else if (element == "-fv") && (index < indexMax) && (a24api["service"] != "") && (a24api["function"] != "") {
-                a24api["filter-value"] = params[index + 1]
-                indexUsedFlag = index + 1
+            } else if (element == "list" || element == "delete" || element == "create" || element == "update") && (A24ApiClientConfig["service"] != "") {
+                A24ApiClientArguments["function"] = element
             // set positional arguments
-            } else if (a24api["service"] != "") && (a24api["function"] != "") {
-                a24api_args["argument" + strconv.Itoa(posArgIndex)] = element
+            } else if (A24ApiClientConfig["service"] != "") && (A24ApiClientConfig["function"] != "") {
+                A24ApiClientArguments["argument" + strconv.Itoa(posArgIndex)] = element
                 posArgIndex++
             // exit on unexpected argument
             } else {
@@ -207,50 +150,29 @@ func main() {
 // LOAD DEFAULTS
 // ================================================================================================================================================================
 
-    if a24api["config"] == "" {
+    if A24ApiClientConfig["config"] == "" {
         var confPath, err = filepath.Abs(filepath.Dir(os.Args[0]))
         if err != nil {
             fmt.Println(err)
         }
-        a24api["config"] = confPath + "/" + Con_a24api_config
-    }
-    if a24api["endpoint"] == "" {
-        a24api["endpoint"] = Con_a24api_endpoint
-    }
-    if a24api["token"] == "" {
-        a24api["token"] = Con_a24api_token
-    }
-    if a24api["format"] == "" {
-        a24api["format"] = Con_a24api_format
-    }
-    if a24api["filter-name"] == "" {
-        a24api["filter-name"] = Con_a24api_name_regexp
-    }
-    if a24api["filter-type"] == "" {
-        a24api["filter-type"] = Con_a24api_type_regexp
-    }
-    if a24api["filter-value"] == "" {
-        a24api["filter-value"] = Con_a24api_value_regexp
-    }
-    if a24api["dial"] == "" {
-        a24api["dial"] = Con_a24api_dial
+        A24ApiClientConfig["config"] = confPath + "/" + C_A24ApiClient_Configfile
     }
 
 // ================================================================================================================================================================
 // LOAD CONFIG FILE
 // ================================================================================================================================================================
 
-    configFile, err := os.Open(a24api["config"])
+    configFile, err := os.Open(A24ApiClientConfig["config"])
     if err == nil {
         defer configFile.Close()
         configDataRaw, _ := ioutil.ReadAll(configFile)
         var configData map[string]string
         json.Unmarshal(configDataRaw, &configData)
         if configData["a24api_endpoint"] != "" {
-            a24api["endpoint"] = configData["a24api_endpoint"]
+            A24ApiClientConfig["endpoint"] = configData["a24api_endpoint"]
         }
         if configData["a24api_token"] != "" {
-            a24api["token"] = configData["a24api_token"]
+            A24ApiClientConfig["token"] = configData["a24api_token"]
         }
     }
 
@@ -258,46 +180,49 @@ func main() {
 // CHECK INPUT DATA
 // ================================================================================================================================================================
 
-    if a24api["service"] == "" || a24api["function"] == "" {
+    if A24ApiClientConfig["service"] == "" || A24ApiClientConfig["function"] == "" {
         fmt.Println("Service or function not provided.")
         printHelp()
         os.Exit(1)
     }
 
 // ================================================================================================================================================================
+// INITIALIZE CLIENT
+// ================================================================================================================================================================
+
+    A24ApiClient := a24apiclient.New_A24ApiClient(A24ApiClientConfig)
+
+// ================================================================================================================================================================
 // PREPARE REQUEST
 // ================================================================================================================================================================
 
-    a24api_request_body := make(map[string]string)
     var posArgOffset = 0
 
-    switch a24api["service"] {
+    switch A24ApiClientArguments["service"] {
         case "dns":
-            switch a24api["function"] {
+            switch A24ApiClientArguments["function"] {
                 case "list":
-                    if len(a24api_args) == 0 {
-                        a24api["endpoint-uri"] = "/dns/domains/v1"
-                        a24api["endpoint-method"] = "GET"
+                    // expected arguments:
+                    if A24ApiClientArguments["argument0"] == "" {
+                        A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListDomains()
                     // expected arguments: 0=domain
                     } else {
-                        a24api["domain"] = a24api_args["argument0"]
-                        a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/records/v1"
-                        a24api["endpoint-method"] = "GET"
+                        A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListRecords(A24ApiClientArguments["argument0"])
                     }
                 case "create", "update":
-                    if a24api["function"] == "create" {
-                        a24api["endpoint-method"] = "POST"
+                    if A24ApiClient.Config["function"] == "create" {
+                        A24ApiClient.Config["endpoint-method"] = "POST"
                     // expected arguments: 0=domain, 1=hash_id
                     } else {
-                        a24api["endpoint-method"] = "PUT"
+                        A24ApiClient.Config["endpoint-method"] = "PUT"
                         a24api_request_body["hashId"] = a24api_args["argument1"]
                         posArgOffset = 1
                     }
                     // expected arguments: 0=domain, 1(2)=type
-                    a24api["domain"] = a24api_args["argument0"]
-                    a24api["record-type"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 1)]
-                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + strings.ToLower(a24api["record-type"]) + "/v1"
-                    switch a24api["record-type"] {
+                    A24ApiClient.Config["domain"] = a24api_args["argument0"]
+                    A24ApiClient.Config["record-type"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 1)]
+                    A24ApiClient.Config["endpoint-uri"] = "/dns/" + A24ApiClient.Config["domain"] + "/" + strings.ToLower(A24ApiClient.Config["record-type"]) + "/v1"
+                    switch A24ApiClient.Config["record-type"] {
                         case "A", "AAAA":
                             // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
                             a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
@@ -355,21 +280,21 @@ func main() {
                             a24api_request_body["priority"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
                             a24api_request_body["mailserver"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
                         default:
-                            fmt.Printf("Unsupported dns type: %s.\n", a24api["record-type"])
+                            fmt.Printf("Unsupported dns type: %s.\n", A24ApiClient.Config["record-type"])
                             os.Exit(1)
                     }
                 // expected arguments: 0=domain, 1=hash_id
                 case "delete":
-                    a24api["domain"] = a24api_args["argument0"]
-                    a24api["endpoint-uri"] = "/dns/" + a24api["domain"] + "/" + a24api_args["argument1"] + "/v1"
-                    a24api["endpoint-method"] = "DELETE"
+                    A24ApiClient.Config["domain"] = a24api_args["argument0"]
+                    A24ApiClient.Config["endpoint-uri"] = "/dns/" + A24ApiClient.Config["domain"] + "/" + a24api_args["argument1"] + "/v1"
+                    A24ApiClient.Config["endpoint-method"] = "DELETE"
                     a24api_request_body["hashId"] = a24api_args["argument1"]
                 default:
-                    fmt.Printf("Unsupported function: %s.\n", a24api["function"])
+                    fmt.Printf("Unsupported function: %s.\n", A24ApiClient.Config["function"])
                     os.Exit(1)
             }
         default:
-            fmt.Printf("Unsupported service: %s.", a24api["service"])
+            fmt.Printf("Unsupported service: %s.", A24ApiClient.Config["service"])
             os.Exit(1)
     }
 
@@ -383,7 +308,7 @@ func main() {
                 Timeout:        10 * time.Second,
                 LocalAddr:      nil,
                 DualStack:      false,
-            }).Dial(a24api["dial"], addr)
+            }).Dial(A24ApiClient.Config["dial"], addr)
         }),
     }
 
@@ -395,7 +320,7 @@ func main() {
         os.Exit(1)
     }
 
-    a24api_request, err := http.NewRequest(a24api["endpoint-method"], a24api["endpoint"] + a24api["endpoint-uri"], bytes.NewBuffer(a24api_request_body_json))
+    a24api_request, err := http.NewRequest(A24ApiClient.Config["endpoint-method"], A24ApiClient.Config["endpoint"] + A24ApiClient.Config["endpoint-uri"], bytes.NewBuffer(a24api_request_body_json))
     if err != nil {
         fmt.Println(err)
         os.Exit(1)
@@ -403,7 +328,7 @@ func main() {
 
     a24api_request.Header.Set("Content-type", "application/json")
     a24api_request.Header.Set("Accept", "application/json")
-    a24api_request.Header.Set("Authorization", "Bearer " + a24api["token"])
+    a24api_request.Header.Set("Authorization", "Bearer " + A24ApiClient.Config["token"])
 
     a24api_response, err := a24api_client.Do(a24api_request)
     if err != nil {
@@ -423,23 +348,19 @@ func main() {
 // PROCESS RESPONSE
 // ================================================================================================================================================================
 
-    if a24api["format"] == "json" {
+    if A24ApiClientArguments["format"] == "json" {
         var pretty_json bytes.Buffer
         json.Indent(&pretty_json, a24api_response_body, "", "    ")
         fmt.Printf("%s\n", string(pretty_json.Bytes()))
     } else {
-        // prepare regexp
-        a24api_filter_name, _ := regexp.Compile(a24api["filter-name"])
-        a24api_filter_type, _ := regexp.Compile(a24api["filter-type"])
-        a24api_filter_value, _ := regexp.Compile(a24api["filter-value"])
 
-        switch a24api["service"] {
+        switch A24ApiClient.Config["service"] {
             case "dns":
                 if (a24api_response.StatusCode != 200) && (a24api_response.StatusCode != 204) {
-                    fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, a24api["service"], a24api["function"]))
+                    fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, A24ApiClient.Config["service"], A24ApiClient.Config["function"]))
                     os.Exit(2)
                 }
-                switch a24api["function"] {
+                switch A24ApiClient.Config["function"] {
                     case "list":
                         // expected structure [ "domainA", "domainB" ]
                         if len(a24api_args) == 0 {
@@ -465,39 +386,39 @@ func main() {
                                     switch element["type"].(string) {
                                         case "A", "AAAA":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["ip"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["ip"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["ip"].(string))
                                             }
                                         case "CNAME":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["alias"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["alias"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["alias"].(string))
                                             }
                                         case "TXT":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["text"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t\"%s\"\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["text"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t\"%s\"\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["text"].(string))
                                             }
                                         case "NS":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["nameServer"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["nameServer"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["nameServer"].(string))
                                             }
                                         case "SSHFP":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["text"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["algorithm"].(float64), element["fingerprintType"].(float64), element["text"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["algorithm"].(float64), element["fingerprintType"].(float64), element["text"].(string))
                                             }
                                         case "SRV":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["target"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["weight"].(float64), element["port"].(float64), element["target"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["weight"].(float64), element["port"].(float64), element["target"].(string))
                                             }
                                         case "TLSA":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["hash"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["certificateUsage"].(float64), element["selector"].(float64), element["matchingType"].(float64), element["hash"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%g\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["certificateUsage"].(float64), element["selector"].(float64), element["matchingType"].(float64), element["hash"].(string))
                                             }
                                         case "CAA":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["caaValue"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["flags"].(float64), element["tag"].(string), element["caaValue"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["flags"].(float64), element["tag"].(string), element["caaValue"].(string))
                                             }
                                         case "MX":
                                             if a24api_filter_name.MatchString(element["name"].(string)) && a24api_filter_value.MatchString(element["mailserver"].(string)) {
-                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\n", a24api["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["mailserver"].(string))
+                                                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%g\t%g\t%s\n", A24ApiClient.Config["domain"], element["hashId"].(string), element["type"].(string), element["name"].(string), element["ttl"].(float64), element["priority"].(float64), element["mailserver"].(string))
                                             }
                                     }
                                 }
@@ -505,7 +426,7 @@ func main() {
                             w.Flush()
                         }
                     case "create", "update", "delete":
-                        fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, a24api["service"], a24api["function"]))
+                        fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, A24ApiClient.Config["service"], A24ApiClient.Config["function"]))
                         os.Exit(0)
                 }
         }

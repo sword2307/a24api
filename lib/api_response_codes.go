@@ -3,7 +3,7 @@ package a24apiclient
 import (
 )
 
-var C_a24apiclient_codes = map[string]map[string]map[int]string {
+var C_A24ApiClient_Codes = map[string]map[string]map[int]string {
     "_shared_": map[string]map[int]string {
         "_codes_": map[int]string {
             200: "OK",
