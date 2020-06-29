@@ -39,7 +39,7 @@ type T_A24ApiClient struct {
     HttpClient                      *http.Client
 }
 
-func New_A24ApiClient(config map[string]string) *T_A24ApiClient {
+func NewA24ApiClient(config map[string]string) *T_A24ApiClient {
     c := &T_A24ApiClient{ Config: config }
     c.mergeConfig()
     c.HttpClient = c.newHttpClient()

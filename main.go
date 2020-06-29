@@ -23,7 +23,10 @@ const (
 var (
     A24ApiClient                        *a24apiclient.T_A24ApiClient
     A24ApiClientConfig                  map[string]string
-    A24ApiClientArguments               map[string]string
+    A24ApiClientArgs                    map[string]string
+    A24ApiClientFuncArgs                map[string]string
+
+    A24ApiClientConfigArgs =            [...]string { "endpoint", "token", "network", "timeout" }
 )
 
 func printHelp() {
@@ -76,7 +79,8 @@ Comments:
 func main() {
 
     A24ApiClientConfig := make(map[string]string)
-    A24ApiClientArguments := make(map[string]string)
+    A24ApiClientArgs := make(map[string]string)
+    A24ApiClientFuncArgs := make(map[string]string)
 
 // ================================================================================================================================================================
 // PARSE ENVIRONMENT
@@ -93,7 +97,7 @@ func main() {
     var params = os.Args[1:]
     var indexMax = len(params) - 1
     var indexUsedFlag = -1
-    var posArgIndex = 0
+    var posFuncArgIndex = 0
 
     for index, element := range params {
 
@@ -129,13 +133,13 @@ func main() {
                 A24ApiClientConfig["network"] = "tcp6"
             // set api service
             } else if (element == "dns" || element == "domain") && (A24ApiClientConfig["service"] == "") {
-                A24ApiClientArguments["service"] = element
+                A24ApiClientArgs["service"] = element
             // set api function
             } else if (element == "list" || element == "delete" || element == "create" || element == "update") && (A24ApiClientConfig["service"] != "") {
-                A24ApiClientArguments["function"] = element
+                A24ApiClientArgs["function"] = element
             // set positional arguments
             } else if (A24ApiClientConfig["service"] != "") && (A24ApiClientConfig["function"] != "") {
-                A24ApiClientArguments["argument" + strconv.Itoa(posArgIndex)] = element
+                A24ApiClientFuncArgs[strconv.Itoa(posFuncArgIndex)] = element
                 posArgIndex++
             // exit on unexpected argument
             } else {
@@ -168,11 +172,10 @@ func main() {
         configDataRaw, _ := ioutil.ReadAll(configFile)
         var configData map[string]string
         json.Unmarshal(configDataRaw, &configData)
-        if configData["a24api_endpoint"] != "" {
-            A24ApiClientConfig["endpoint"] = configData["a24api_endpoint"]
-        }
-        if configData["a24api_token"] != "" {
-            A24ApiClientConfig["token"] = configData["a24api_token"]
+        for _, lConfigArg := range A24ApiClientConfigArgs {
+            if configData[lConfigArg] != "" {
+                A24ApiClientConfig[lConfigArg] = configData[lConfigArg]
+            }
         }
     }
 
@@ -190,7 +193,7 @@ func main() {
 // INITIALIZE CLIENT
 // ================================================================================================================================================================
 
-    A24ApiClient := a24apiclient.New_A24ApiClient(A24ApiClientConfig)
+    A24ApiClient := a24apiclient.NewA24ApiClient(A24ApiClientConfig)
 
 // ================================================================================================================================================================
 // PREPARE REQUEST
