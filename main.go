@@ -201,19 +201,19 @@ func main() {
 
     var posArgOffset = 0
 
-    switch A24ApiClientArguments["service"] {
+    switch A24ApiClientArgs["service"] {
         case "dns":
-            switch A24ApiClientArguments["function"] {
+            switch A24ApiClientArgs["function"] {
                 case "list":
                     // expected arguments:
-                    if A24ApiClientArguments["argument0"] == "" {
+                    if A24ApiClientFuncArgs["0"] == "" {
                         A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListDomains()
                     // expected arguments: 0=domain
                     } else {
-                        A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListRecords(A24ApiClientArguments["argument0"])
+                        A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListRecords(A24ApiClientFuncArgs["0"])
                     }
                 case "create", "update":
-                    if A24ApiClient.Config["function"] == "create" {
+                    if A24ApiClientFuncArgs["function"] == "create" {
                         A24ApiClient.Config["endpoint-method"] = "POST"
                     // expected arguments: 0=domain, 1=hash_id
                     } else {
