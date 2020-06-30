@@ -4,41 +4,41 @@ import (
 )
 
 type T_DnsRecordA struct {
-    HashId         string
-    Type           string
-    Ip             string
-    Name           string
-    Ttl            float64
+    HashId          string    `json:"hashId"`
+    Type            string    `json:"type"`
+    Ip              string    `json:"ip"`
+    Name            string    `json:"name"`
+    Ttl             float64   `json:"ttl"`
 }
 
 type T_DnsRecordAAAA struct {
-    hashId         string
-    Type           string
-    ip             string
-    name           string
-    ttl            float64
+    hashId         string     `json:"hashId"`
+    Type           string     `json:"type"`
+    ip             string     `json:"ip"`
+    name           string     `json:"name"`
+    ttl            float64    `json:"ttl"`
 }
 
 type T_DnsRecordCNAME struct {
-    HashId         string
-    Type           string
-    Name           string
-    Alias          string
-    Ttl            float64
+    HashId         string     `json:"hashId"`
+    Type           string     `json:"type"`
+    Name           string     `json:"name"`
+    Alias          string     `json:"alias"`
+    Ttl            float64    `json:"ttl"`
 }
 
 type T_DnsRecordTXT struct {
-    HashId         string
-    Type           string
-    Name           string
-    Text           string
-    Ttl            float64
+    HashId         string     `json:"hashId"`
+    Type           string     `json:"type"`
+    Name           string     `json:"name"`
+    Text           string     `json:"text"`
+    Ttl            float64    `json:"ttl"`
 }
 
 type T_DnsRecordNS struct {
-    HashId         string
-    Type           string
-    Name           string
-    NameServer     string
-    Ttl            float64
+    HashId         string     `json:"hashId"`
+    Type           string     `json:"type"`
+    Name           string     `json:"name"`
+    NameServer     string     `json:"nameServer"`
+    Ttl            float64    `json:"ttl"`
 }
