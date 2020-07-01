@@ -3,6 +3,10 @@ package a24apiclient
 import (
 )
 
+type T_DnsDomainList []string
+
+type T_DnsRecordList []map[string]interface{}
+
 type T_DnsRecordA struct {
     HashId          string    `json:"hashId"`
     Type            string    `json:"type"`
@@ -42,3 +46,4 @@ type T_DnsRecordNS struct {
     NameServer     string     `json:"nameServer"`
     Ttl            float64    `json:"ttl"`
 }
+

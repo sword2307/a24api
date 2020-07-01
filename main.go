@@ -6,13 +6,9 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
-    "net"
-    "time"
-    "net/http"
     "path/filepath"
     "strconv"
     "text/tabwriter"
-    "strings"
     "a24api/lib"
 )
 
@@ -88,6 +84,9 @@ func main() {
 
     A24ApiClientConfig["endpoint"] = os.Getenv("A24API_ENDPOINT")
     A24ApiClientConfig["token"] = os.Getenv("A24API_TOKEN")
+    A24ApiClientConfig["network"] = os.Getenv("A24API_NETWORK")
+    A24ApiClientConfig["timeout"] = os.Getenv("A24API_TIMEOUT")
+    A24ApiClientConfig["format"] = os.Getenv("A24API_FORMAT")
     A24ApiClientConfig["config"] = os.Getenv("A24API_CONFIG")
 
 // ================================================================================================================================================================
@@ -123,7 +122,7 @@ func main() {
                 indexUsedFlag = index + 1
             // set output format
             } else if (element == "-f" || element == "--format") && (index < indexMax) && (A24ApiClientConfig["service"] == "") {
-                A24ApiClientArguments["format"] = params[index + 1]
+                A24ApiClientArgs["format"] = params[index + 1]
                 indexUsedFlag = index + 1
             // set network ip version to 4
             } else if (element == "-4") && (A24ApiClientConfig["service"] == "") {
@@ -140,7 +139,6 @@ func main() {
             // set positional arguments
             } else if (A24ApiClientConfig["service"] != "") && (A24ApiClientConfig["function"] != "") {
                 A24ApiClientFuncArgs[strconv.Itoa(posFuncArgIndex)] = element
-                posArgIndex++
             // exit on unexpected argument
             } else {
                 fmt.Println("Unknown argument or argument out of order.")
@@ -196,10 +194,12 @@ func main() {
     A24ApiClient := a24apiclient.NewA24ApiClient(A24ApiClientConfig)
 
 // ================================================================================================================================================================
-// PREPARE REQUEST
+// MAKE REQUEST
 // ================================================================================================================================================================
 
-    var posArgOffset = 0
+    var A24ApiResponseCode    int
+    var A24ApiResponseBody    []byte
+    var A24ApiResponseError   error
 
     switch A24ApiClientArgs["service"] {
         case "dns":
@@ -207,178 +207,59 @@ func main() {
                 case "list":
                     // expected arguments:
                     if A24ApiClientFuncArgs["0"] == "" {
-                        A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListDomains()
+                        A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsListDomains()
                     // expected arguments: 0=domain
                     } else {
-                        A24ApiResponseCode, A24ApiResponseBody, err := A24ApiClient.DnsListRecords(A24ApiClientFuncArgs["0"])
+                        A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsListRecords(A24ApiClientFuncArgs["0"])
                     }
-                case "create", "update":
-                    if A24ApiClientFuncArgs["function"] == "create" {
-                        A24ApiClient.Config["endpoint-method"] = "POST"
-                    // expected arguments: 0=domain, 1=hash_id
-                    } else {
-                        A24ApiClient.Config["endpoint-method"] = "PUT"
-                        a24api_request_body["hashId"] = a24api_args["argument1"]
-                        posArgOffset = 1
-                    }
-                    // expected arguments: 0=domain, 1(2)=type
-                    A24ApiClient.Config["domain"] = a24api_args["argument0"]
-                    A24ApiClient.Config["record-type"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 1)]
-                    A24ApiClient.Config["endpoint-uri"] = "/dns/" + A24ApiClient.Config["domain"] + "/" + strings.ToLower(A24ApiClient.Config["record-type"]) + "/v1"
-                    switch A24ApiClient.Config["record-type"] {
-                        case "A", "AAAA":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["ip"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "CNAME":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["alias"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "TXT":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["text"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "NS":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=value
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["nameServer"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                        case "SSHFP":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=algorithm, 5(6)=fp_type, 6(7)=fingerprint
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["algorithm"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                            a24api_request_body["fingerprintType"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
-                            a24api_request_body["text"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
-                        case "SRV":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=priority, 5(6)=weight, 6(7)=port, 7(8)=target
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["priority"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                            a24api_request_body["weight"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
-                            a24api_request_body["port"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
-                            a24api_request_body["target"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 7)]
-                        case "TLSA":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=certificate_usage, 5(6)=selector, 6(7)=matching_type, 7(8)=hash
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["certificateUsage"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                            a24api_request_body["selector"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
-                            a24api_request_body["matchingType"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
-                            a24api_request_body["hash"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 7)]
-                        case "CAA":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=flags, 5(6)=tag, 6(7)=value
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["flags"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                            a24api_request_body["tag"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
-                            a24api_request_body["caaValue"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 6)]
-                        case "MX":
-                            // expected arguments: 0=domain, 1(2)=type, 2(3)=name, 3(4)=ttl, 4(5)=priority, 5(6)=value
-                            a24api_request_body["name"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 2)]
-                            a24api_request_body["ttl"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 3)]
-                            a24api_request_body["priority"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 4)]
-                            a24api_request_body["mailserver"] = a24api_args["argument" + strconv.Itoa(posArgOffset + 5)]
-                        default:
-                            fmt.Printf("Unsupported dns type: %s.\n", A24ApiClient.Config["record-type"])
-                            os.Exit(1)
-                    }
-                // expected arguments: 0=domain, 1=hash_id
+                case "create":
+                    // expected arguments: 0=domain, ...
+                    A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsCreate(A24ApiClientFuncArgs)
+                case "update":
+                    // expected arguments: 0=domain, 1=hash_id, ...
+                    A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsUpdate(A24ApiClientFuncArgs)
                 case "delete":
-                    A24ApiClient.Config["domain"] = a24api_args["argument0"]
-                    A24ApiClient.Config["endpoint-uri"] = "/dns/" + A24ApiClient.Config["domain"] + "/" + a24api_args["argument1"] + "/v1"
-                    A24ApiClient.Config["endpoint-method"] = "DELETE"
-                    a24api_request_body["hashId"] = a24api_args["argument1"]
+                    // expected arguments: 0=domain, 1=hash_id
+                    A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsDelete(A24ApiClientFuncArgs)
                 default:
-                    fmt.Printf("Unsupported function: %s.\n", A24ApiClient.Config["function"])
+                    fmt.Printf("Unsupported function: %s.\n", A24ApiClientArgs["function"])
                     os.Exit(1)
             }
         default:
-            fmt.Printf("Unsupported service: %s.", A24ApiClient.Config["service"])
+            fmt.Printf("Unsupported service: %s.", A24ApiClientArgs["service"])
             os.Exit(1)
-    }
-
-// ================================================================================================================================================================
-// MAKE REQUEST
-// ================================================================================================================================================================
-
-    a24api_transport := &http.Transport{
-        Dial: (func(network, addr string) (net.Conn, error) {
-            return (&net.Dialer{
-                Timeout:        10 * time.Second,
-                LocalAddr:      nil,
-                DualStack:      false,
-            }).Dial(A24ApiClient.Config["dial"], addr)
-        }),
-    }
-
-    a24api_client := &http.Client{Transport: a24api_transport}
-
-    a24api_request_body_json, err := json.Marshal(a24api_request_body)
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
-
-    a24api_request, err := http.NewRequest(A24ApiClient.Config["endpoint-method"], A24ApiClient.Config["endpoint"] + A24ApiClient.Config["endpoint-uri"], bytes.NewBuffer(a24api_request_body_json))
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
-
-    a24api_request.Header.Set("Content-type", "application/json")
-    a24api_request.Header.Set("Accept", "application/json")
-    a24api_request.Header.Set("Authorization", "Bearer " + A24ApiClient.Config["token"])
-
-    a24api_response, err := a24api_client.Do(a24api_request)
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
-
-    defer a24api_response.Body.Close()
-
-    a24api_response_body, err := ioutil.ReadAll(a24api_response.Body)
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
     }
 
 // ================================================================================================================================================================
 // PROCESS RESPONSE
 // ================================================================================================================================================================
 
-    if A24ApiClientArguments["format"] == "json" {
+    if A24ApiClientArgs["format"] == "json" {
         var pretty_json bytes.Buffer
-        json.Indent(&pretty_json, a24api_response_body, "", "    ")
+        json.Indent(&pretty_json, A24ApiResponseBody, "", "    ")
         fmt.Printf("%s\n", string(pretty_json.Bytes()))
     } else {
 
-        switch A24ApiClient.Config["service"] {
+        switch A24ApiClientArgs["service"] {
             case "dns":
-                if (a24api_response.StatusCode != 200) && (a24api_response.StatusCode != 204) {
-                    fmt.Printf("%d %s\n", a24api_response.StatusCode, getCodeText(a24api_response.StatusCode, A24ApiClient.Config["service"], A24ApiClient.Config["function"]))
+                if (A24ApiResponseCode != 200) && (A24ApiResponseCode != 204) {
+                    fmt.Printf("%d %s\n", A24ApiResponseCode, A24ApiClient.GetCodeText(A24ApiResponseCode, A24ApiClientArgs["service"], A24ApiClientArgs["function"]))
                     os.Exit(2)
                 }
                 switch A24ApiClient.Config["function"] {
                     case "list":
                         // expected structure [ "domainA", "domainB" ]
-                        if len(a24api_args) == 0 {
+                        if len(A24ApiClientFuncArgs) == 0 {
                             var structured_data []string
-                            json.Unmarshal([]byte(a24api_response_body), &structured_data)
+                            json.Unmarshal([]byte(A24ApiResponseBody), &structured_data)
                             w := new(tabwriter.Writer)
                             w.Init(os.Stdout, 0, 8, 1, ' ', 0)
                             for _, element := range structured_data {
-                                if a24api_filter_name.MatchString(element) {
-                                    fmt.Fprintf(w, "%s\n", element)
-                                }
+                                fmt.Fprintf(w, "%s\n", element)
                             }
                             w.Flush()
                         } else {
-                        // expected structure [ { "variableA": "value", "variableB": "value" }, { "variableA": "value", "variableB": "value" } ]
+                            // expected structure [ { "variableA": "value", "variableB": "value" }, { "variableA": "value", "variableB": "value" } ]
                             var structured_data []map[string]interface{}
                             json.Unmarshal([]byte(a24api_response_body), &structured_data)
                             //fmt.Printf("%v\n", structured_data)
