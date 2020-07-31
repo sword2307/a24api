@@ -127,48 +127,34 @@ func (c *T_A24ApiClient) doApiRequest(method, endpoint string, body map[string]s
 
 }
 
+// --------------------------------------------------------------------------------------------------------------------
 // List domains
+// --------------------------------------------------------------------------------------------------------------------
+
 func (c *T_A24ApiClient) DnsListDomainsRaw() (int, []byte, error) {
-
     a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/domains/v1", nil);
-
     return a24api_response_code, a24api_response_body, err
-
 }
 
-func (c *T_A24ApiClient) DnsListDomains(format string) (int, interface {}, error) {
+func (c *T_A24ApiClient) DnsListDomains() (int, interface {}, error) {
 
     rc, rb, err := c.DnsListDomainsRaw()
 
-    // json
-    if format == "json" {
-        if err != nil {
-            return nil, nil, err
-        } else {
-            var j bytes.Buffer
-            json.Indent(&j, rb, "", "    ")
-            return rc, j, err
-        }
-    // native
-    } else {
-        if err != nil {
-            return nil, nil, err
-        } else {
-            var t T_DnsDomainList
-            json.Unmarshal([]byte(rb), &t)
-            return rc, t, err
-        }
+    if err != nil {
+        return rc, nil, err
     }
-
+    var t T_DnsDomainList
+    err = json.Unmarshal([]byte(rb), &t)
+    if err != nil {
+        return rc, nil, err
+    }
+    return rc, t, err
 }
 
 // List domain dns records
-func (c *T_A24ApiClient) DnsListRecords(domain string) (int, []byte, error) {
-
-    a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/" + domain + "/records/v1", nil);
-
+func (c *T_A24ApiClient) DnsListRecords(data map[string]string) (int, []byte, error) {
+    a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/" + data["0"] + "/records/v1", nil);
     return a24api_response_code, a24api_response_body, err
-
 }
 
 // Create dns record

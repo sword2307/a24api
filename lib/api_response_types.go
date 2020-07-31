@@ -46,4 +46,3 @@ type T_DnsRecordNS struct {
     NameServer     string     `json:"nameServer"`
     Ttl            float64    `json:"ttl"`
 }
-

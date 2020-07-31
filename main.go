@@ -39,7 +39,7 @@ Options:
 Services, functions and parameters:
     dns
         list
-        list <domain>
+        records <domain>
         delete <domain> <hash_id>
         create <domain>
             <A|AAAA|CNAME|TXT> <name|@> <ttl> <ip|alias|text>
@@ -206,12 +206,10 @@ func main() {
             switch A24ApiClientArgs["function"] {
                 case "list":
                     // expected arguments:
-                    if A24ApiClientFuncArgs["0"] == "" {
-                        A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsListDomains()
+                    A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsListDomains()
+                case "records":
                     // expected arguments: 0=domain
-                    } else {
-                        A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsListRecords(A24ApiClientFuncArgs["0"])
-                    }
+                    A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsListRecords(A24ApiClientFuncArgs)
                 case "create":
                     // expected arguments: 0=domain, ...
                     A24ApiResponseCode, A24ApiResponseBody, A24ApiResponseError := A24ApiClient.DnsCreate(A24ApiClientFuncArgs)
