@@ -20,7 +20,7 @@ var (
     A24ApiClient                        *a24apiclient.T_A24ApiClient
     A24ApiClientConfig                  map[string]string
     A24ApiClientArgs                    map[string]string
-    A24ApiClientFuncArgs                map[string]string
+    A24ApiClientFuncArgs                map[int]string
 
     A24ApiClientConfigArgs =            [...]string { "endpoint", "token", "network", "timeout" }
 )
@@ -76,7 +76,7 @@ func main() {
 
     A24ApiClientConfig := make(map[string]string)
     A24ApiClientArgs := make(map[string]string)
-    A24ApiClientFuncArgs := make(map[string]string)
+    A24ApiClientFuncArgs := make(map[int]string)
 
 // ================================================================================================================================================================
 // PARSE ENVIRONMENT
@@ -138,7 +138,7 @@ func main() {
                 A24ApiClientArgs["function"] = element
             // set positional arguments
             } else if (A24ApiClientConfig["service"] != "") && (A24ApiClientConfig["function"] != "") {
-                A24ApiClientFuncArgs[strconv.Itoa(posFuncArgIndex)] = element
+                A24ApiClientFuncArgs[posFuncArgIndex] = element
             // exit on unexpected argument
             } else {
                 fmt.Println("Unknown argument or argument out of order.")

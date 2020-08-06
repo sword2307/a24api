@@ -7,23 +7,8 @@ type T_DnsDomainList []string
 
 type T_DnsRecordList []map[string]interface{}
 
-type T_DnsRecordA struct {
-    HashId          string    `json:"hashId"`
-    Type            string    `json:"type"`
-    Ip              string    `json:"ip"`
-    Name            string    `json:"name"`
-    Ttl             float64   `json:"ttl"`
-}
-
-type T_DnsRecordAAAA struct {
-    hashId         string     `json:"hashId"`
-    Type           string     `json:"type"`
-    ip             string     `json:"ip"`
-    name           string     `json:"name"`
-    ttl            float64    `json:"ttl"`
-}
-
 type T_DnsRecordCNAME struct {
+    Domain         string
     HashId         string     `json:"hashId"`
     Type           string     `json:"type"`
     Name           string     `json:"name"`
@@ -32,6 +17,7 @@ type T_DnsRecordCNAME struct {
 }
 
 type T_DnsRecordTXT struct {
+    Domain         string
     HashId         string     `json:"hashId"`
     Type           string     `json:"type"`
     Name           string     `json:"name"`
@@ -40,6 +26,7 @@ type T_DnsRecordTXT struct {
 }
 
 type T_DnsRecordNS struct {
+    Domain         string
     HashId         string     `json:"hashId"`
     Type           string     `json:"type"`
     Name           string     `json:"name"`

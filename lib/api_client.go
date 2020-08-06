@@ -39,6 +39,19 @@ type T_A24ApiClient struct {
     HttpClient                      *http.Client
 }
 
+type T_A24ApiClientError struct{
+    Text string
+}
+
+func (e *T_A24ApiClientError) Error() string {
+    return e.Text
+}
+
+func NewA24ApiClientError(text string) *T_A24ApiClientError {
+    e:= &T_A24ApiClientError{ Text: text }
+    return e
+}
+
 func NewA24ApiClient(config map[string]string) *T_A24ApiClient {
     c := &T_A24ApiClient{ Config: config }
     c.mergeConfig()
@@ -124,56 +137,5 @@ func (c *T_A24ApiClient) doApiRequest(method, endpoint string, body map[string]s
     } else {
         return a24api_response.StatusCode, a24api_response_body, nil
     }
-
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-// List domains
-// --------------------------------------------------------------------------------------------------------------------
-
-func (c *T_A24ApiClient) DnsListDomainsRaw() (int, []byte, error) {
-    a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/domains/v1", nil);
-    return a24api_response_code, a24api_response_body, err
-}
-
-func (c *T_A24ApiClient) DnsListDomains() (int, interface {}, error) {
-
-    rc, rb, err := c.DnsListDomainsRaw()
-
-    if err != nil {
-        return rc, nil, err
-    }
-    var t T_DnsDomainList
-    err = json.Unmarshal([]byte(rb), &t)
-    if err != nil {
-        return rc, nil, err
-    }
-    return rc, t, err
-}
-
-// List domain dns records
-func (c *T_A24ApiClient) DnsListRecords(data map[string]string) (int, []byte, error) {
-    a24api_response_code, a24api_response_body, err := c.doApiRequest("GET", c.Config["endpoint"] + "/dns/" + data["0"] + "/records/v1", nil);
-    return a24api_response_code, a24api_response_body, err
-}
-
-// Create dns record
-func (c *T_A24ApiClient) DnsCreate(data map[string]string) (int, []byte, error) {
-
-    return 0, nil, nil
-
-}
-
-// Update dns record
-func (c *T_A24ApiClient) DnsUpdate(data map[string]string) (int, []byte, error) {
-
-    return 0, nil, nil
-
-}
-
-// Delete dns record
-func (c *T_A24ApiClient) DnsDelete(data map[string]string) (int, []byte, error) {
-
-    return 0, nil, nil
 
 }
